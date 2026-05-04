@@ -28,23 +28,20 @@ State changes are driven by Claude Code [hooks](https://docs.anthropic.com/claud
 
 ## Install
 
-### Homebrew
+One command, source-from-clone:
+
+```bash
+git clone https://github.com/danielkempe/clawdex && cd clawdex && ./install.sh
+```
+
+`install.sh` runs `swift build -c release`, symlinks the binaries into a writable PATH dir (`/opt/homebrew/bin`, `/usr/local/bin`, or `~/.clawdex/bin` as a fallback), wires the Claude Code hooks into `~/.claude/settings.json`, and starts the daemon via launchd. Idempotent — safe to re-run.
+
+Homebrew (requires up-to-date Xcode Command Line Tools):
 
 ```bash
 brew install danielkempe/clawdex/clawdex
-clawdex install   # registers hooks in ~/.claude/settings.json and starts the daemon
+$(brew --prefix)/share/clawdex/install.sh
 clawdex wake
-```
-
-### From source
-
-```bash
-git clone https://github.com/danielkempe/clawdex
-cd clawdex
-swift build -c release
-cp .build/release/clawdexd /usr/local/bin/
-cp .build/release/clawdex  /usr/local/bin/
-./install.sh
 ```
 
 ## Get a pet

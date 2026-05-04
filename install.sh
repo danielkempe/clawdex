@@ -12,17 +12,57 @@ CLAWDEX_HOME="${CLAWDEX_HOME:-$HOME/.clawdex}"
 HOOKS_DIR="$CLAWDEX_HOME/hooks"
 SETTINGS="$HOME/.claude/settings.json"
 LAUNCH_AGENT="$HOME/Library/LaunchAgents/dev.clawdex.daemon.plist"
-DAEMON_BIN="${CLAWDEX_DAEMON:-$(command -v clawdexd 2>/dev/null || true)}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Build from source if no binaries are present and we're inside a checkout.
+# When the formula installs us, the binaries are already in PATH.
+if [ ! -x "$SCRIPT_DIR/.build/release/clawdexd" ] \
+   && [ ! -x "$SCRIPT_DIR/.build/debug/clawdexd" ] \
+   && ! command -v clawdexd >/dev/null 2>&1 \
+   && [ -f "$SCRIPT_DIR/Package.swift" ]; then
+  echo "==> Building clawdex (swift build -c release; ~30-60s first time)"
+  (cd "$SCRIPT_DIR" && swift build -c release)
+fi
+
+DAEMON_BIN="${CLAWDEX_DAEMON:-$(command -v clawdexd 2>/dev/null || true)}"
 if [ -z "$DAEMON_BIN" ]; then
-  if [ -x "$(dirname "$0")/.build/release/clawdexd" ]; then
-    DAEMON_BIN="$(cd "$(dirname "$0")/.build/release" && pwd)/clawdexd"
-  elif [ -x "$(dirname "$0")/.build/debug/clawdexd" ]; then
-    DAEMON_BIN="$(cd "$(dirname "$0")/.build/debug" && pwd)/clawdexd"
+  if [ -x "$SCRIPT_DIR/.build/release/clawdexd" ]; then
+    DAEMON_BIN="$SCRIPT_DIR/.build/release/clawdexd"
+  elif [ -x "$SCRIPT_DIR/.build/debug/clawdexd" ]; then
+    DAEMON_BIN="$SCRIPT_DIR/.build/debug/clawdexd"
   else
     echo "clawdex install: cannot find clawdexd binary on PATH or in .build/." >&2
-    echo "Build first: swift build -c release" >&2
     exit 1
+  fi
+fi
+
+CLI_BIN="${CLAWDEX_CLI:-$(command -v clawdex 2>/dev/null || true)}"
+if [ -z "$CLI_BIN" ]; then
+  if   [ -x "$SCRIPT_DIR/.build/release/clawdex" ]; then CLI_BIN="$SCRIPT_DIR/.build/release/clawdex"
+  elif [ -x "$SCRIPT_DIR/.build/debug/clawdex"   ]; then CLI_BIN="$SCRIPT_DIR/.build/debug/clawdex"
+  fi
+fi
+
+# Symlink the CLI into a writable PATH dir so `clawdex wake` works post-install.
+# Skip if a CLI is already on PATH (e.g. installed via Homebrew).
+if ! command -v clawdex >/dev/null 2>&1 && [ -n "$CLI_BIN" ]; then
+  for candidate in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
+    if [ -d "$candidate" ] && [ -w "$candidate" ]; then
+      ln -sf "$CLI_BIN"    "$candidate/clawdex"
+      ln -sf "$DAEMON_BIN" "$candidate/clawdexd"
+      LINKED_DIR="$candidate"
+      break
+    fi
+  done
+  if [ -z "$LINKED_DIR" ]; then
+    mkdir -p "$HOME/.clawdex/bin"
+    ln -sf "$CLI_BIN"    "$HOME/.clawdex/bin/clawdex"
+    ln -sf "$DAEMON_BIN" "$HOME/.clawdex/bin/clawdexd"
+    LINKED_DIR="$HOME/.clawdex/bin"
+    echo "==> No writable PATH dir found. Linked to $LINKED_DIR."
+    echo "    Add this to your shell rc:  export PATH=\"\$HOME/.clawdex/bin:\$PATH\""
+  else
+    echo "==> Linked clawdex / clawdexd into $LINKED_DIR"
   fi
 fi
 
