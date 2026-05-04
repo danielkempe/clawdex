@@ -34,12 +34,9 @@ class Clawdex < Formula
     EOS
   end
 
-  service do
-    run [opt_bin/"clawdexd"]
-    keep_alive true
-    log_path var/"log/clawdex.log"
-    error_log_path var/"log/clawdex.log"
-  end
+  # No `service do` block: install.sh is the single source of truth for the
+  # launchd agent (so source-from-clone users and brew-installed users get the
+  # same on-disk plist instead of fighting over a shared socket).
 
   test do
     assert_match "Codex-pet companion", shell_output("#{bin}/clawdex 2>&1", 2)
